@@ -1,5 +1,5 @@
 require 'net/http'
-
+require 'net/ping'
 
 SOURCES = [
   "http://avidcore.s3-us-west-2.amazonaws.com/b1.txt",
@@ -7,22 +7,37 @@ SOURCES = [
   "http://avidcore.s3-us-west-2.amazonaws.com/b9.txt",
 ]
 
-URL_WITH_OR_WITHOUT_HTTP = /^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$/
-
 class FileParser
 
   def initialize
-    parse_sources
+    urls = parse_sources
+
+    create_webpages urls
   end
 
-  def parse_sources
-    SOURCES.each do |source|
-      pages = url_to_webpages(source)
-      puts "#{source} => [#{pages.join(', ')}]"
+  def create_webpages(urls)
+    urls.each do |url|
+      status = Net::Ping::External.new(url).ping? ? 'live' : 'down'
+      page = Webpage.find_or_initialize_by url: url
+      page.status = status
+      page.save!
+      puts page
     end
   end
 
-  def url_to_webpages(url)
+  def parse_sources
+    urls = []
+    SOURCES.each do |source|
+      pages = url_to_list(source)
+      puts "#{source} => [#{pages.join(', ')}]"
+      urls += pages
+    end
+    puts "urls:::: #{urls.join(', ')}"
+
+    urls
+  end
+
+  def url_to_list(url)
     url = URI.parse(url)
     req = Net::HTTP::Get.new(url.to_s)
     response = Net::HTTP.start(url.host, url.port) {|http|
@@ -37,9 +52,9 @@ class FileParser
     end
       .map do |url|
         if url.start_with?('http')
-          url
+          URI.parse(url).host
         else
-          "http://#{url}"
+          url
         end
       end
   end

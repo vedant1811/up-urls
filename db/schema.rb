@@ -16,10 +16,11 @@ ActiveRecord::Schema.define(version: 2018_09_08_100656) do
   enable_extension "plpgsql"
 
   create_table "webpages", force: :cascade do |t|
-    t.text "url"
+    t.text "url", null: false
     t.text "status"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["url"], name: "index_webpages_on_url", unique: true
   end
 
 end
