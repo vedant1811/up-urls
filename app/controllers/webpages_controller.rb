@@ -3,7 +3,7 @@ class WebpagesController < ApplicationController
     FileParser.new
 
     render json: {
-        data: all_pages
+        notice: 'Pinging all pages in the background'
       }
   end
 

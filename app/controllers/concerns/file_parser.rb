@@ -12,18 +12,11 @@ class FileParser
 
   def initialize
     @urls = Queue.new
-    @mutex = Mutex.new
-    @c = ConditionVariable.new
+    @exitable = false
 
     parse_sources
 
     create_webpages
-
-    @mutex.synchronize {
-      puts "waiting"
-      @c.wait(@mutex, 10) # timeout after 10 secs
-      puts "released"
-    }
   end
 
   def create_webpages
@@ -42,12 +35,6 @@ class FileParser
           page.save!
           puts page
 
-          if @urls.empty? && @exitable
-            @mutex.synchronize {
-              puts "signal from"
-              @c.signal
-            }
-          end
         end
       end
     end
@@ -59,13 +46,9 @@ class FileParser
         pages = url_to_list(source)
         puts "#{source} => [#{pages.join(', ')}]"
         pages.each { |page| @urls << page }
-
-        if @all_queued
-          @exitable = true
-        end
+        @exitable = true
       end
     end
-    @all_queued = true
   end
 
   def url_to_list(url)
