@@ -1,3 +1,4 @@
+require 'thread'
 require 'net/http'
 require 'net/ping'
 
@@ -10,31 +11,61 @@ SOURCES = [
 class FileParser
 
   def initialize
-    urls = parse_sources
+    @urls = Queue.new
+    @mutex = Mutex.new
+    @c = ConditionVariable.new
 
-    create_webpages urls
+    parse_sources
+
+    create_webpages
+
+    @mutex.synchronize {
+      puts "waiting"
+      @c.wait(@mutex, 10) # timeout after 10 secs
+      puts "released"
+    }
   end
 
-  def create_webpages(urls)
-    urls.each do |url|
-      status = Net::Ping::External.new(url).ping? ? 'live' : 'down'
-      page = Webpage.find_or_initialize_by url: url
-      page.status = status
-      page.save!
-      puts page
+  def create_webpages
+    4.times do |i|
+      Thread.new do
+        while !@exitable || !@urls.empty?
+          puts "pop---"
+
+          url = @urls.pop
+
+          puts "----pop"
+
+          status = Net::Ping::External.new(url).ping? ? 'live' : 'down'
+          page = Webpage.find_or_initialize_by url: url
+          page.status = status
+          page.save!
+          puts page
+
+          if @urls.empty? && @exitable
+            @mutex.synchronize {
+              puts "signal from"
+              @c.signal
+            }
+          end
+        end
+      end
     end
   end
 
   def parse_sources
-    urls = []
     SOURCES.each do |source|
-      pages = url_to_list(source)
-      puts "#{source} => [#{pages.join(', ')}]"
-      urls += pages
-    end
-    puts "urls:::: #{urls.join(', ')}"
+      Thread.new do
+        pages = url_to_list(source)
+        puts "#{source} => [#{pages.join(', ')}]"
+        pages.each { |page| @urls << page }
 
-    urls
+        if @all_queued
+          @exitable = true
+        end
+      end
+    end
+    @all_queued = true
   end
 
   def url_to_list(url)
