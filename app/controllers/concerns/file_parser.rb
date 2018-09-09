@@ -11,7 +11,10 @@ SOURCES = [
 class FileParser
 
   def initialize
+    # a queue to implement a producer and consumer
     @urls = Queue.new
+
+    # a shared boolean variable
     @exitable = false
 
     parse_sources
@@ -25,16 +28,19 @@ class FileParser
         while !@exitable || !@urls.empty?
           puts "pop---"
 
+          # consume from queue
           url = @urls.pop
 
           puts "----pop"
 
-          status = Net::Ping::External.new(url).ping? ? 'live' : 'down'
+          pinger = Net::Ping::External.new(url)
+          status = pinger.ping? ? 'live' : 'down'
+
+          puts "#{url}-> #{pinger.warning}, #{pinger.exception}"
+
           page = Webpage.find_or_initialize_by url: url
           page.status = status
           page.save!
-          puts page
-
         end
       end
     end
@@ -45,7 +51,10 @@ class FileParser
       Thread.new do
         pages = url_to_list(source)
         puts "#{source} => [#{pages.join(', ')}]"
+
+        # produce to queue
         pages.each { |page| @urls << page }
+
         @exitable = true
       end
     end
