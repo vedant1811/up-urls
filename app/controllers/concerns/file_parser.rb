@@ -33,10 +33,10 @@ class FileParser
 
           puts "----pop"
 
-          pinger = Net::Ping::External.new(url)
-          status = pinger.ping? ? 'live' : 'down'
+          # pinger = Net::Ping::External.new(url)
+          status = up?(url) ? 'live' : 'down'
 
-          puts "#{url}-> #{pinger.warning}, #{pinger.exception}"
+          puts "#{url}-> #{status}"
 
           page = Webpage.find_or_initialize_by url: url
           page.status = status
@@ -80,5 +80,15 @@ class FileParser
           url
         end
       end
+  end
+
+  def up?(site)
+    http = Net::HTTP.new(site)
+    http.open_timeout = 2
+    http.head('/')
+    true
+  rescue => e
+    puts "#{site} error -> #{e.class} #{e.message}"
+    false
   end
 end
